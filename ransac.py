@@ -3,6 +3,14 @@
 from scipy import optimize
 import numpy as np
 
+import read_data
+
+def near_orthog(m):
+    """
+    near_orthog finds a nearby orthogonal matrix to the matrix m
+    """
+    w = np.linalg.svd(m)
+    return(w[0].dot(w[2]))
 
 def horn_adjust(x, y):
     """
@@ -86,47 +94,117 @@ def horn_adjust(x, y):
         return(rot_tmp + meanY)
     return(T)
 
-#
-#def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
-#    """
-#    cloud_s is a Numpy array of points in group s (source)
-#    cloud_t is a Numpy array of points in group t (target)
-#    Each point is a Numpy array in x,y,z space.
-#    n_iter is how many iterations to perform (see slide 58, lecture 11)
-#    n_inlier_cutoff is how many inliers we need to refit
-#    d_cutoff is cutoff distance for us to consider somethign an inlier
-#    """
-#    iter = 0
-#    n_inliers = [0] * n_iter
-## initialize T_list
-#    while iter < n_iter:
-#        iter += 1
-#        n_s = len(cloud_s)
-## TODO: replace this random choice with 3 corresponding feature descriptors
-#        points_s = np.random.choice(n_s, 3, replace=False)
-#        points_t = np.random.choice(n_t, 3, replace=False)
-#        x_vals = np.array([cloud_s[i] for i in points_s])
-#        y_vals = np.array([cloud_t[i] for i in points_t])
-## Using Horn 1987, Closed-form solution of absolute orientation
-## using unit quaternions.
-## TODO: calculate initial transformation T
-## Note: T_init here is a function
-#        T_init = horn_adjust(x_vals, y_vals)
-#
-## TODO: find inliers to the transformation T
-#
-#        if TODO > n_inlier_cutoff:
-## TODO: recompute LS estimate on inliers
-##optimize.root, with method='lm'
-#
-## TODO: update below
-#        #n_inliers[iter] =
-#
-#   max_index = n_inliers.index(max(n_inliers)) 
-#
-## TODO: return the T corresponding to max_index, along with
-## the number of inliers
-#
+def find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+               A, b):
+    """
+    find_error calculates the error in eq. 5 of the Henry et al paper.
+
+    A,b determine T: T(x) = A * x + b
+
+    TODO: find n_t^j
+    TODO: find w_j
+    Uses read_data.proj
+    """
+    def T(x):
+        # TODO: make sure it's A.dot(x), and not A.dot(x.T) !!
+        return(A.dot(x) + b)
+
+    first_sum = np.array([np.sqrt(np.linalg.norm(read_data.proj(T(f_s[i])) 
+                                  - read_data.proj(T(f_t[i])))) for i in A_f])
+# TODO: add in w_j here
+    second_sum = np.array([np.sqrt(np.linalg.norm(T(p_s[i]) - T(p_t[i])))
+                           for i in A_d])
+    error = first_sum.sum() / len(A_f) + second_sum.sum() * beta / len(A_d)
+    return(error)
+
+def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+             A, b):
+    """
+    find_argmin_T does the update in eq. 5 of the Henry et al paper.
+
+    Calculates a numerical derivative
+
+    TODO: find n_t^j
+    TODO: find w_j
+    Uses find_error() to get the error.
+    """
+    def f_error(x):
+        A_tmp = np.reshape(x[0:9], newshape=(3,3))
+        b_tmp = x[9:12]
+        return(find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+                          A_tmp, b_tmp))
+#    e_0 = find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+#                     A, b)
+#    delta_step = 1e-6
+#    A_deriv = np.zeros([3, 3])
+#    for i in 1:3
+#        for j in 1:3
+#            A_tmp = A
+#            A_tmp[i, j] += delta_step
+#            A_deriv[i, j] = (find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+#                                     A_tmp, b) - e_0) / delta_step
+#    b_deriv = np.zeros(3)
+#    for j in 1:3
+#        b_tmp = b
+#        b_tmp[j] += delta_step
+#        b_deriv[i, j] = (find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+#                                 A, b_tmp) - e_0) / delta_step
+    def flatten(A, b):
+        # Flatten out A and b into x_0
+        return(np.concatenate((np.reshape(A, newshape=(9,)), b)))
+    x_0 = flatten(A, b)
+    sol = optimize.root(f_error, x_0, method='lm')
+    def expand(x):
+        # Un-flattens x into the tuple of A and b
+        return(np.reshape(x[0:9], newshape=(3,3)), x[9:12])
+
+    A_tmp, b = expand(sol.x)
+# TODO: could do a closer near_orthog rotation if there's much change here
+    A = near_orthog(A_tmp)
+    return(A, b)
+    
+
+def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
+    """
+    cloud_s is a Numpy array of points in group s (source)
+    cloud_t is a Numpy array of points in group t (target)
+    Each point is a Numpy array in x,y,z space.
+    n_iter is how many iterations to perform (see slide 58, lecture 11)
+    n_inlier_cutoff is how many inliers we need to refit
+    d_cutoff is cutoff distance for us to consider somethign an inlier
+    """
+    iter = 0
+    n_inliers = [0] * n_iter
+# initialize T_list
+    while iter < n_iter:
+        iter += 1
+        n_s = len(cloud_s)
+# TODO: replace this random choice with 3 corresponding feature descriptors
+        points_s = np.random.choice(n_s, 3, replace=False)
+        points_t = np.random.choice(n_t, 3, replace=False)
+        x_vals = np.array([cloud_s[i] for i in points_s])
+        y_vals = np.array([cloud_t[i] for i in points_t])
+# Using Horn 1987, Closed-form solution of absolute orientation
+# using unit quaternions.
+# TODO: calculate initial transformation T
+# Note: T_init here is a function
+        T_init = horn_adjust(x_vals, y_vals)
+
+# TODO: find inliers to the transformation T
+
+        if TODO > n_inlier_cutoff:
+# TODO: recompute LS estimate on inliers
+#optimize.root, with method='lm'
+
+# TODO: update below
+        #n_inliers[iter] =
+    max_index = n_inliers.index(max(n_inliers)) 
+    # Compute the best transformation T_star
+    A, b = find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+                         A_init, b_init)
+# TODO: do I return T corresponding to A and b, or do I return A and b?
+    return(A, b)
+
 
 #y = np.array([3.45, 2.5, 6.7])
 ys = np.random.rand(3,3)
