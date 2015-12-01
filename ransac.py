@@ -117,6 +117,7 @@ def find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
     error = first_sum.sum() / len(A_f) + second_sum.sum() * beta / len(A_d)
     return(error)
 
+#def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
 def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
              A, b):
     """
@@ -133,23 +134,7 @@ def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
         b_tmp = x[9:12]
         return(find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
                           A_tmp, b_tmp))
-#    e_0 = find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-#                     A, b)
-#    delta_step = 1e-6
-#    A_deriv = np.zeros([3, 3])
-#    for i in 1:3
-#        for j in 1:3
-#            A_tmp = A
-#            A_tmp[i, j] += delta_step
-#            A_deriv[i, j] = (find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-#                                     A_tmp, b) - e_0) / delta_step
-#    b_deriv = np.zeros(3)
-#    for j in 1:3
-#        b_tmp = b
-#        b_tmp[j] += delta_step
-#        b_deriv[i, j] = (find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-#                                 A, b_tmp) - e_0) / delta_step
-    def flatten(A, b):
+   def flatten(A, b):
         # Flatten out A and b into x_0
         return(np.concatenate((np.reshape(A, newshape=(9,)), b)))
     x_0 = flatten(A, b)
