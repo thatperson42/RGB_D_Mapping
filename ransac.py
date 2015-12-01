@@ -92,9 +92,14 @@ def horn_adjust(x, y):
         shift_tmp = (w - meanX) * scale_factor
         rot_tmp = rotation_full.dot(shift_tmp)
         return(rot_tmp + meanY)
+## Ignore scale_factor
+#    T(x) = Ax + b
+#    A = rotation_full
+#    b = meanY - rotation_full.dot(meanX)
     return(T)
 
-def find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+
+def find_error(p_s, p_t, A_d,
                A, b):
     """
     find_error calculates the error in eq. 5 of the Henry et al paper.
@@ -109,17 +114,14 @@ def find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
         # TODO: make sure it's A.dot(x), and not A.dot(x.T) !!
         return(A.dot(x) + b)
 
-    first_sum = np.array([np.sqrt(np.linalg.norm(read_data.proj(T(f_s[i])) 
-                                  - read_data.proj(T(f_t[i])))) for i in A_f])
 # TODO: add in w_j here
     second_sum = np.array([np.sqrt(np.linalg.norm(T(p_s[i]) - T(p_t[i])))
                            for i in A_d])
-    error = first_sum.sum() / len(A_f) + second_sum.sum() * beta / len(A_d)
+    error = second_sum.sum() / len(A_d)
     return(error)
 
-#def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-             A, b):
+def find_argmin_T(p_s, p_t, A_d,
+                  A, b):
     """
     find_argmin_T does the update in eq. 5 of the Henry et al paper.
 
@@ -132,7 +134,7 @@ def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
     def f_error(x):
         A_tmp = np.reshape(x[0:9], newshape=(3,3))
         b_tmp = x[9:12]
-        return(find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+        return(find_error(p_s, p_t, A_d,
                           A_tmp, b_tmp))
    def flatten(A, b):
         # Flatten out A and b into x_0
@@ -185,7 +187,7 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
         #n_inliers[iter] =
     max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
-    A, b = find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+    A, b = find_argmin_T(p_s, p_t, A_d,
                          A_init, b_init)
 # TODO: do I return T corresponding to A and b, or do I return A and b?
     return(A, b)
