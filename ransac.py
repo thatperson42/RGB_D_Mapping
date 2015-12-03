@@ -2,8 +2,115 @@
 
 from scipy import optimize
 import numpy as np
+import cv2 as cv
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 import read_data
+
+def get_Orb_Keypoints_XYZ(rgb1, depth1, rgb2, depth2, m=50, fastThreshhold=60):
+    debug=False
+    debugVerbose=False
+    """
+    Input:
+      rgb1 - rgb data for first image
+      d1 - depth data for first image
+      rgb2 - rgb data for second image
+      d2 - depth data for second image
+      m - max number of non-zero keypoints
+    Output:
+      XYZ1 - XYZ Coordinates of keypoints
+      XYZ2 - XYZ Coordinates of keypoints
+    """
+    #Initialize extractor
+    orb=cv.ORB_create()
+    orb.setFastThreshold(fastThreshhold)
+
+    #Find keypoints
+    kp1,des1=orb.detectAndCompute(rgb1,None)
+    kp2,des2=orb.detectAndCompute(rgb2,None)
+
+    if debug:
+        print("Total Keypoints (Image1): ", len(kp1))
+        print("Total Keypoints (Image2): ", len(kp2))
+
+    bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
+
+    # Match descriptors.
+    matches = bf.match(des1,des2)
+
+    # Sort them in the order of their distance.
+    matches = sorted(matches, key = lambda x:x.distance)
+
+    #Collect the top (HARDCODED) 25 keypairs
+    kppixels1=np.zeros((len(matches),2))
+    kppixels2=np.zeros((len(matches),2))
+
+    #Find matched pixel pairs
+    for i in range(len(matches)):
+        kppixels1[i,:]=kp1[matches[i].queryIdx].pt
+        kppixels2[i,:]=kp2[matches[i].trainIdx].pt
+
+    if debug:
+        if debugVerbose:
+            print(kppixels1)
+            print(kppixels2)
+        img3 = cv.drawMatches(rgb1,kp1,rgb2,kp2,matches[:10],None,flags=2)
+        plt.imshow(img3),plt.show()
+
+    #Convert to XYZ data
+    tmppix1=pixel_2_XYZ(depth1,kppixels1)
+    tmppix2=pixel_2_XYZ(depth2,kppixels2)
+
+    #Find only non-zero entries
+    nonzero=((tmppix1==0).sum(axis=1)<1)*((tmppix2==0).sum(axis=1)<1)
+    XYZ1=tmppix1[nonzero]
+    XYZ2=tmppix2[nonzero]
+
+    #Take only the best m pairs, if more available
+    if sum(nonzero)>m:
+        XYZ1=XYZ1[0:m,]
+        XYZ2=XYZ2[0:m,]
+
+    return(XYZ1,XYZ2)
+
+def pixel_2_XYZ(depth_image, pixels, freiburg1=True):
+    """
+    Input: 
+         depth_image[pixely,pixelx, rgb] == depth at pixely, pixelx, color specified by rgb -
+                (all rgb have the same values)
+                Image storing depth measurements as greyscale - 255=5m, 0=0m
+    Output:
+         XYZ[i, ] == xyz coordinates for pixel i
+         XYZ[i, xyz] == coordinate for xyz of pixel i
+             xyz is 0, 1, or 2
+    """
+
+    pixels=pixels.round()
+
+    factor=5000.0/255.0 #For greyscale images
+    #Set focal parameters
+    if(freiburg1):
+        #freiburg1 parameters
+        fx=517.3  #Focal length x
+        fy=516.5  #Focal length y
+        cx=318.6  #Optical center x
+        cy=255.3  #Optical center y
+    else:
+        #default parameters
+        fx=525.0  #Focal length x
+        fy=525.0  #Focal length y
+        cx=319.5  #Optical center x
+        cy=239.5  #Optical center y
+
+    XYZ=np.zeros((pixels.shape[0],3))
+
+    for i in range(pixels.shape[0]):
+        XYZ[i,2]=depth_image[pixels[i,1],pixels[i,0]]/factor
+        XYZ[i,0]=(pixels[i,1]-cx)*XYZ[i,2]/fx;
+        XYZ[i,1]=(pixels[i,0]-cy)*XYZ[i,2]/fy;
+
+    return(XYZ)
 
 def near_orthog(m):
     """
@@ -13,6 +120,7 @@ def near_orthog(m):
     return(w[0].dot(w[2]))
 
 def horn_adjust(x, y):
+    debug=False
     """
     x and y are numpy arrays consisting of three points in 3d space.
     Each row of x is a point, and each row of y is a point.
@@ -26,26 +134,28 @@ def horn_adjust(x, y):
     translation = meanY - meanX
     x_centered = x - meanX
     y_centered = y - meanY
-    print("x_centered")
-    print(x_centered)
-    print("y_centered")
-    print(y_centered)
-# Find how much to rescale the x's. Entrywise multiplication.
+    if debug:
+        print("x_centered")
+        print(x_centered)
+        print("y_centered")
+        print(y_centered)
+    # Find how much to rescale the x's. Entrywise multiplication.
     x_scale = np.sqrt((x_centered * x_centered).sum())
     y_scale = np.sqrt((y_centered * y_centered).sum())
     scale_factor = y_scale / x_scale
-    print("scale_factor")
-    print(scale_factor)
     x_centered_prime = x_centered * scale_factor
-    print("x_centered_prime")
-    print(x_centered_prime)
-# Find angle to rotate the planes
+    if debug:
+        print("scale_factor")
+        print(scale_factor)
+        print("x_centered_prime")
+        print(x_centered_prime)
+    # Find angle to rotate the planes
     x_perp = np.cross(x_centered_prime[0], x_centered_prime[1])
     y_perp = np.cross(y_centered[0], y_centered[1])
-# Find rotation matrix to rotate the x plane into the y plane
-# Using https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
-# https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
-# TODO: have to check this section! it's tricky
+    # Find rotation matrix to rotate the x plane into the y plane
+    # Using https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
+    # https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
+    # TODO: have to check this section! it's tricky
     x_perp_unit = x_perp / np.linalg.norm(x_perp)
     y_perp_unit = y_perp / np.linalg.norm(y_perp)
     v = np.cross(x_perp_unit, y_perp_unit)
@@ -54,15 +164,15 @@ def horn_adjust(x, y):
     v_x = np.array([[0, -v[2], v[1]],
                     [v[2], 0, -v[0]],
                     [-v[1], v[0], 0]])
-# rotation_p works on a column vector
-# rotation_p acts on the plane
+    # rotation_p works on a column vector
+    # rotation_p acts on the plane
     rotation_p = np.eye(3) + v_x + v_x.dot(v_x) * (1 - c) / s**2.0
     print("rotation_p")
     print(rotation_p)
-# TODO: rotate x_centered_prime properly
-# Transpose to make each x a column vector, then transpose back for next part
+    # TODO: rotate x_centered_prime properly
+    # Transpose to make each x a column vector, then transpose back for next part
     x_plane = rotation_p.dot(x_centered_prime.T).T
-# Now rotate within the plane, as in Sec. 5 of Horn
+    # Now rotate within the plane, as in Sec. 5 of Horn
     v_y = np.array([[0, -y_perp_unit[2], y_perp_unit[1]],
                     [y_perp_unit[2], 0, -y_perp_unit[0]],
                     [-y_perp_unit[1], y_perp_unit[0], 0]])
@@ -75,15 +185,16 @@ def horn_adjust(x, y):
     cos_theta = c_win_tmp / np.sqrt(np.linalg.norm(s_win_tmp)**2 +
                                     np.linalg.norm(c_win_tmp)**2)
     rotation_win = np.eye(3) + sin_theta * v_y + (1 - cos_theta) * v_y.dot(v_y)
-    print("rotation_win")
-    print(rotation_win)
-# transpose so each column is an x vector, then transpose back at the end
+    # transpose so each column is an x vector, then transpose back at the end
     # x_final = rotation_win.dot(x_final.T).T
     rotation_full = rotation_win.dot(rotation_p)
-    print("rotation_full")
-    print(rotation_full)
-    print("shifting by")
-    print(rotation_full.dot(-meanX * scale_factor) + meanY)
+    if debug:
+        print("rotation_win")
+        print(rotation_win)
+        print("rotation_full")
+        print(rotation_full)
+        print("shifting by")
+        print(rotation_full.dot(-meanX * scale_factor) + meanY)
     def T(w):
         """
         T takes a numpy array with 3 entries, spits out another
@@ -92,9 +203,14 @@ def horn_adjust(x, y):
         shift_tmp = (w - meanX) * scale_factor
         rot_tmp = rotation_full.dot(shift_tmp)
         return(rot_tmp + meanY)
+    ## Ignore scale_factor
+    #    T(x) = Ax + b
+    #    A = rotation_full
+    #    b = meanY - rotation_full.dot(meanX)
     return(T)
 
-def find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+
+def find_error(p_s, p_t, A_d,
                A, b):
     """
     find_error calculates the error in eq. 5 of the Henry et al paper.
@@ -109,16 +225,14 @@ def find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
         # TODO: make sure it's A.dot(x), and not A.dot(x.T) !!
         return(A.dot(x) + b)
 
-    first_sum = np.array([np.sqrt(np.linalg.norm(read_data.proj(T(f_s[i])) 
-                                  - read_data.proj(T(f_t[i])))) for i in A_f])
 # TODO: add in w_j here
     second_sum = np.array([np.sqrt(np.linalg.norm(T(p_s[i]) - T(p_t[i])))
                            for i in A_d])
-    error = first_sum.sum() / len(A_f) + second_sum.sum() * beta / len(A_d)
+    error = second_sum.sum() / len(A_d)
     return(error)
 
-def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-             A, b):
+def find_argmin_T(p_s, p_t, A_d,
+                  A, b):
     """
     find_argmin_T does the update in eq. 5 of the Henry et al paper.
 
@@ -131,24 +245,8 @@ def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
     def f_error(x):
         A_tmp = np.reshape(x[0:9], newshape=(3,3))
         b_tmp = x[9:12]
-        return(find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+        return(find_error(p_s, p_t, A_d,
                           A_tmp, b_tmp))
-#    e_0 = find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-#                     A, b)
-#    delta_step = 1e-6
-#    A_deriv = np.zeros([3, 3])
-#    for i in 1:3
-#        for j in 1:3
-#            A_tmp = A
-#            A_tmp[i, j] += delta_step
-#            A_deriv[i, j] = (find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-#                                     A_tmp, b) - e_0) / delta_step
-#    b_deriv = np.zeros(3)
-#    for j in 1:3
-#        b_tmp = b
-#        b_tmp[j] += delta_step
-#        b_deriv[i, j] = (find_error(f_s, f_t, A_f, p_s, p_t, A_d, beta,
-#                                 A, b_tmp) - e_0) / delta_step
     def flatten(A, b):
         # Flatten out A and b into x_0
         return(np.concatenate((np.reshape(A, newshape=(9,)), b)))
@@ -159,7 +257,7 @@ def find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
         return(np.reshape(x[0:9], newshape=(3,3)), x[9:12])
 
     A_tmp, b = expand(sol.x)
-# TODO: could do a closer near_orthog rotation if there's much change here
+    # TODO: could do a closer near_orthog rotation if there's much change here
     A = near_orthog(A_tmp)
     return(A, b)
     
@@ -175,37 +273,43 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
     """
     iter = 0
     n_inliers = [0] * n_iter
-# initialize T_list
+    # initialize T_list
     while iter < n_iter:
         iter += 1
         n_s = len(cloud_s)
-# TODO: replace this random choice with 3 corresponding feature descriptors
+        n_t = len(cloud_t)
+        # TODO: replace this random choice with 3 corresponding feature descriptors
         points_s = np.random.choice(n_s, 3, replace=False)
         points_t = np.random.choice(n_t, 3, replace=False)
         x_vals = np.array([cloud_s[i] for i in points_s])
         y_vals = np.array([cloud_t[i] for i in points_t])
-# Using Horn 1987, Closed-form solution of absolute orientation
-# using unit quaternions.
-# TODO: calculate initial transformation T
-# Note: T_init here is a function
+        # Using Horn 1987, Closed-form solution of absolute orientation
+        # using unit quaternions.
+        # TODO: calculate initial transformation T
+        # Note: T_init here is a function
         T_init = horn_adjust(x_vals, y_vals)
 
-# TODO: find inliers to the transformation T
+        # TODO: find inliers to the transformation T
 
-        if TODO > n_inlier_cutoff:
-# TODO: recompute LS estimate on inliers
-#optimize.root, with method='lm'
+        #if TODO > n_inlier_cutoff:
+        # TODO: recompute LS estimate on inliers
+        #optimize.root, with method='lm'
+        #    pass
 
-# TODO: update below
+        # TODO: update below
         #n_inliers[iter] =
     max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
-    A, b = find_argmin_T(f_s, f_t, A_f, p_s, p_t, A_d, beta,
+    A, b = find_argmin_T(points_s, points_t, A_d,
                          A_init, b_init)
-# TODO: do I return T corresponding to A and b, or do I return A and b?
+    # TODO: do I return T corresponding to A and b, or do I return A and b?
+    #I think we want A and b here (Anne)
     return(A, b)
 
 
+
+#TESTING CODE - Suppressed
+"""
 #y = np.array([3.45, 2.5, 6.7])
 ys = np.random.rand(3,3)
 scale_tmp = np.random.rand()
@@ -215,7 +319,24 @@ q, _ = np.linalg.qr(mat_tmp)
 #q = np.eye(3)
 # Have to transpose for multiplication by q then transpose back
 xs = scale_tmp * q.dot(ys.T).T + shift_tmp
-
 T_tmp = horn_adjust(xs, ys)
-T_tmp(xs[0]) - ys[0]
+print("Output")
+print(T_tmp(xs[0]) - ys[0])
+"""
 
+print("Anne's Work Starts Here")
+
+#Load first two images
+firstimg=read_data.rgbData[read_data.pairedData[100][0]][0]
+firstdepth=read_data.depthData[read_data.pairedData[100][1]][0]
+secondimg=read_data.rgbData[read_data.pairedData[101][0]][0]
+seconddepth=read_data.depthData[read_data.pairedData[101][1]][0]
+rgb1=cv.imread(firstimg,0)
+depth1=cv.imread(firstdepth,0)
+rgb2=cv.imread(secondimg,0)
+depth2=cv.imread(seconddepth,0)
+
+#Find Keypoints
+(XYZ1,XYZ2)=get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
+ransac(XYZ1,XYZ2,10,10,.5)
+#print(firstimg,firstdepth,secondimg,seconddepth)

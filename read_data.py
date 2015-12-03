@@ -11,8 +11,9 @@ depthPicsLoc = "depth/"
 
 accelData = associate.read_file_list('accelerometer.txt')
 depthData = associate.read_file_list('depth.txt')
+rgbData = associate.read_file_list('rgb.txt')
 
-pairedData = associate.associate(accelData, depthData, 0.0, 0.02)
+pairedData = associate.associate(rgbData, depthData, 0.0, 0.02)
 truthData = associate.read_file_list('groundtruth.txt')
 rgbData = associate.read_file_list('rgb.txt')
 
