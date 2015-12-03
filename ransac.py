@@ -9,8 +9,6 @@ from mpl_toolkits.mplot3d import Axes3D
 import read_data
 
 def get_Orb_Keypoints_XYZ(rgb1, depth1, rgb2, depth2, m=50, fastThreshhold=60):
-    debug=False
-    debugVerbose=False
     """
     Input:
       rgb1 - rgb data for first image
@@ -22,6 +20,9 @@ def get_Orb_Keypoints_XYZ(rgb1, depth1, rgb2, depth2, m=50, fastThreshhold=60):
       XYZ1 - XYZ Coordinates of keypoints
       XYZ2 - XYZ Coordinates of keypoints
     """
+    debug=False
+    debugVerbose=False
+
     #Initialize extractor
     orb=cv.ORB_create()
     orb.setFastThreshold(fastThreshhold)
@@ -203,10 +204,17 @@ def horn_adjust(x, y):
         shift_tmp = (w - meanX) * scale_factor
         rot_tmp = rotation_full.dot(shift_tmp)
         return(rot_tmp + meanY)
+<<<<<<< HEAD
     ## Ignore scale_factor
     #    T(x) = Ax + b
     #    A = rotation_full
     #    b = meanY - rotation_full.dot(meanX)
+=======
+## Ignore scale_factor
+#    T(x) = Ax + b
+#    A = rotation_full
+#    b = meanY - rotation_full.dot(meanX)
+>>>>>>> d97307e6841ad0b1333204eab64af2b4fb77e39a
     return(T)
 
 
@@ -247,7 +255,11 @@ def find_argmin_T(p_s, p_t, A_d,
         b_tmp = x[9:12]
         return(find_error(p_s, p_t, A_d,
                           A_tmp, b_tmp))
+<<<<<<< HEAD
     def flatten(A, b):
+=======
+   def flatten(A, b):
+>>>>>>> d97307e6841ad0b1333204eab64af2b4fb77e39a
         # Flatten out A and b into x_0
         return(np.concatenate((np.reshape(A, newshape=(9,)), b)))
     x_0 = flatten(A, b)
@@ -300,7 +312,11 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
         #n_inliers[iter] =
     max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
+<<<<<<< HEAD
     A, b = find_argmin_T(points_s, points_t, A_d,
+=======
+    A, b = find_argmin_T(p_s, p_t, A_d,
+>>>>>>> d97307e6841ad0b1333204eab64af2b4fb77e39a
                          A_init, b_init)
     # TODO: do I return T corresponding to A and b, or do I return A and b?
     #I think we want A and b here (Anne)
