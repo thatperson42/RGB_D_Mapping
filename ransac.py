@@ -1,6 +1,7 @@
 # ransac.py
 
 from scipy import optimize
+from scipy import spatial
 import numpy as np
 import cv2 as cv
 from matplotlib import pyplot as plt
@@ -325,10 +326,17 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
                         ' but got ' + `max_inliers`)
     #max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
-#    A, b = find_argmin_T(points_s, points_t, A_d,
-#                         A_init, b_init)
-    A = A_init # TODO: Temporary, for testing!!!!
-    b = b_init
+# TODO: actually optimize over the depth field!! using spatial.KDTree and spatial.KDTree.query
+    A_d = list(range(n_s))
+    A, b = find_argmin_T(cloud_s, cloud_t, A_d,
+                         A_init, b_init)
+#    A = A_init # TODO: Temporary, for testing!!!!
+#    b = b_init
+    print("A_init value:")
+    print(A_init)
+    print("b_init value:")
+    print(b_init)
+ 
     print("Returning A, b")
     print("A value:")
     print(A)
