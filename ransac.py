@@ -317,10 +317,10 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
         raise Exception('insufficient inliers!')
     max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
-    A, b = find_argmin_T(points_s, points_t, A_d,
-                         A_init, b_init)
-    # TODO: do I return T corresponding to A and b, or do I return A and b?
-    #I think we want A and b here (Anne)
+#    A, b = find_argmin_T(points_s, points_t, A_d,
+#                         A_init, b_init)
+    A = A_init # TODO: Temporary, for testing!!!!
+    b = b_init
     return(A, b)
 
 
