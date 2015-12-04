@@ -131,6 +131,7 @@ def horn_adjust(x, y):
     Following Horn 1987.
     """
     debug=False
+    #debug=True
     meanX = x.mean(axis=0)
     meanY = y.mean(axis=0)
     translation = meanY - meanX
@@ -169,8 +170,6 @@ def horn_adjust(x, y):
     # rotation_p works on a column vector
     # rotation_p acts on the plane
     rotation_p = np.eye(3) + v_x + v_x.dot(v_x) * (1 - c) / s**2.0
-    print("rotation_p")
-    print(rotation_p)
     # TODO: rotate x_centered_prime properly
     # Transpose to make each x a column vector, then transpose back for next part
     x_plane = rotation_p.dot(x_centered_prime.T).T
@@ -190,13 +189,6 @@ def horn_adjust(x, y):
     # transpose so each column is an x vector, then transpose back at the end
     # x_final = rotation_win.dot(x_final.T).T
     rotation_full = rotation_win.dot(rotation_p)
-    if debug:
-        print("rotation_win")
-        print(rotation_win)
-        print("rotation_full")
-        print(rotation_full)
-        print("shifting by")
-        print(rotation_full.dot(-meanX * scale_factor) + meanY)
     #def T(w):
     #    """
     #    T takes a numpy array with 3 entries, spits out another
@@ -209,6 +201,15 @@ def horn_adjust(x, y):
     #    T(x) = Ax + b
     A = rotation_full
     b = meanY - rotation_full.dot(meanX)
+    if debug:
+        #print("rotation_win")
+        #print(rotation_win)
+        print("A")
+        print(rotation_full)
+        print("b")
+        print(b)
+        #print("shifting by")
+        #print(rotation_full.dot(-meanX * scale_factor) + meanY)
     #return(T)
     return(A, b)
 
@@ -275,16 +276,19 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
     d_cutoff is cutoff distance for us to consider something an inlier
     """
     import random
-    iter = 0
+    n_s = len(cloud_s)
+    n_t = len(cloud_t)
     n_inliers = [0] * n_iter
     # initialize T_list
-    A_init = np.zeros([3,3])
+#    A_init = np.zeros([3,3])
+    A_init = np.eye(3)
     b_init = np.zeros(3)
-    max_inliers = 0
-    while iter < n_iter:
-        iter += 1
-        n_s = len(cloud_s)
-        n_t = len(cloud_t)
+    pred_t = A_init.dot(cloud_s.T).T + b_init
+# TODO: should really be looking at the distance in the projected space!!
+    inliers = [np.linalg.norm(pred_t[i,] - cloud_t[i,]) < d_cutoff for i in range(n_s)]
+    max_inliers = sum(inliers)
+    print("Starting with " + `max_inliers` + " inliers")
+    for iter in range(n_iter):
         assert n_s == n_t, "clouds not of equal size in ransac()"
         # TODO: replace this random choice with 3 corresponding feature descriptors
         points_inds = random.sample(range(n_s), 3)
@@ -303,7 +307,7 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
         # TODO: find inliers to the transformation T
         pred_t = A_init_tmp.dot(cloud_s.T).T + b_init_tmp
 # TODO: should really be looking at the distance in the projected space!!
-        inliers = [np.linalg.norm(pred_t[i,] - clout_t[i,]) < d_cutoff for i in range(n_s)]
+        inliers = [np.linalg.norm(pred_t[i,] - cloud_t[i,]) < d_cutoff for i in range(n_s)]
         n_inliers = sum(inliers)
 
         # TODO: do we want to refit on the inliers?
@@ -311,16 +315,27 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
             A_init = A_init_tmp
             b_init = b_init_tmp
             max_inliers = n_inliers
+            print("Adjusting A and b again!")
+            print(A_init)
+            print(b_init)
 
     # TODO: are we using n_inlier_cutoff in this way? Check the paper!
     if max_inliers < n_inlier_cutoff:
-        raise Exception('insufficient inliers!')
-    max_index = n_inliers.index(max(n_inliers)) 
+        raise Exception('insufficient inliers! Want ' + `n_inlier_cutoff` +
+                        ' but got ' + `max_inliers`)
+    #max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
 #    A, b = find_argmin_T(points_s, points_t, A_d,
 #                         A_init, b_init)
     A = A_init # TODO: Temporary, for testing!!!!
     b = b_init
+    print("Returning A, b")
+    print("A value:")
+    print(A)
+    print("b value:")
+    print(b)
+    print("inliers:")
+    print(max_inliers)
     return(A, b)
 
 
@@ -354,6 +369,7 @@ rgb2=cv.imread(secondimg,0)
 depth2=cv.imread(seconddepth,0)
 
 #Find Keypoints
-(XYZ1,XYZ2)=get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
-#ransac(XYZ1,XYZ2,10,10,.5)
+#(XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
+(XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=100)
+A,b = ransac(XYZ1, XYZ2, 50, 5, .1)
 #print(firstimg,firstdepth,secondimg,seconddepth)
