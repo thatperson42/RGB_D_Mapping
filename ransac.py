@@ -75,6 +75,7 @@ def get_Orb_Keypoints_XYZ(rgb1, depth1, rgb2, depth2, m=50, fastThreshhold=60):
 
     return(XYZ1,XYZ2)
 
+
 def pixel_2_XYZ(depth_image, pixels, freiburg1=True):
     """
     Input: 
@@ -121,7 +122,6 @@ def near_orthog(m):
     return(w[0].dot(w[2]))
 
 def horn_adjust(x, y):
-    debug=False
     """
     x and y are numpy arrays consisting of three points in 3d space.
     Each row of x is a point, and each row of y is a point.
@@ -130,6 +130,7 @@ def horn_adjust(x, y):
     translation, comes closest to y by least squares.
     Following Horn 1987.
     """
+    debug=False
     meanX = x.mean(axis=0)
     meanY = y.mean(axis=0)
     translation = meanY - meanX
@@ -196,26 +197,20 @@ def horn_adjust(x, y):
         print(rotation_full)
         print("shifting by")
         print(rotation_full.dot(-meanX * scale_factor) + meanY)
-    def T(w):
-        """
-        T takes a numpy array with 3 entries, spits out another
-        numpy array with 3 entries (this is a vector in R^3)
-        """
-        shift_tmp = (w - meanX) * scale_factor
-        rot_tmp = rotation_full.dot(shift_tmp)
-        return(rot_tmp + meanY)
-<<<<<<< HEAD
-    ## Ignore scale_factor
+    #def T(w):
+    #    """
+    #    T takes a numpy array with 3 entries, spits out another
+    #    numpy array with 3 entries (this is a vector in R^3)
+    #    """
+    #    shift_tmp = (w - meanX) * scale_factor
+    #    rot_tmp = rotation_full.dot(shift_tmp)
+    #    return(rot_tmp + meanY)
+    # Ignore scale_factor
     #    T(x) = Ax + b
-    #    A = rotation_full
-    #    b = meanY - rotation_full.dot(meanX)
-=======
-## Ignore scale_factor
-#    T(x) = Ax + b
-#    A = rotation_full
-#    b = meanY - rotation_full.dot(meanX)
->>>>>>> d97307e6841ad0b1333204eab64af2b4fb77e39a
-    return(T)
+    A = rotation_full
+    b = meanY - rotation_full.dot(meanX)
+    #return(T)
+    return(A, b)
 
 
 def find_error(p_s, p_t, A_d,
@@ -255,11 +250,7 @@ def find_argmin_T(p_s, p_t, A_d,
         b_tmp = x[9:12]
         return(find_error(p_s, p_t, A_d,
                           A_tmp, b_tmp))
-<<<<<<< HEAD
     def flatten(A, b):
-=======
-   def flatten(A, b):
->>>>>>> d97307e6841ad0b1333204eab64af2b4fb77e39a
         # Flatten out A and b into x_0
         return(np.concatenate((np.reshape(A, newshape=(9,)), b)))
     x_0 = flatten(A, b)
@@ -281,42 +272,52 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
     Each point is a Numpy array in x,y,z space.
     n_iter is how many iterations to perform (see slide 58, lecture 11)
     n_inlier_cutoff is how many inliers we need to refit
-    d_cutoff is cutoff distance for us to consider somethign an inlier
+    d_cutoff is cutoff distance for us to consider something an inlier
     """
+    import random
     iter = 0
     n_inliers = [0] * n_iter
     # initialize T_list
+    A_init = np.zeros([3,3])
+    b_init = np.zeros(3)
+    max_inliers = 0
     while iter < n_iter:
         iter += 1
         n_s = len(cloud_s)
         n_t = len(cloud_t)
+        assert n_s == n_t, "clouds not of equal size in ransac()"
         # TODO: replace this random choice with 3 corresponding feature descriptors
-        points_s = np.random.choice(n_s, 3, replace=False)
-        points_t = np.random.choice(n_t, 3, replace=False)
-        x_vals = np.array([cloud_s[i] for i in points_s])
-        y_vals = np.array([cloud_t[i] for i in points_t])
+        points_inds = random.sample(range(n_s), 3)
+#        points_s = np.random.choice(n_s, 3, replace=False)
+#        points_t = np.random.choice(n_t, 3, replace=False)
+        x_vals = np.array([cloud_s[i] for i in points_inds])
+        y_vals = np.array([cloud_t[i] for i in points_inds])
+        #x_vals = np.array([cloud_s[i] for i in points_s])
+        #y_vals = np.array([cloud_t[i] for i in points_t])
+
         # Using Horn 1987, Closed-form solution of absolute orientation
         # using unit quaternions.
-        # TODO: calculate initial transformation T
-        # Note: T_init here is a function
-        T_init = horn_adjust(x_vals, y_vals)
+        #T_init = horn_adjust(x_vals, y_vals)
+        A_init_tmp, b_init_tmp = horn_adjust(x_vals, y_vals)
 
         # TODO: find inliers to the transformation T
+        pred_t = A_init_tmp.dot(cloud_s.T).T + b_init_tmp
+# TODO: should really be looking at the distance in the projected space!!
+        inliers = [np.linalg.norm(pred_t[i,] - clout_t[i,]) < d_cutoff for i in range(n_s)]
+        n_inliers = sum(inliers)
 
-        #if TODO > n_inlier_cutoff:
-        # TODO: recompute LS estimate on inliers
-        #optimize.root, with method='lm'
-        #    pass
+        # TODO: do we want to refit on the inliers?
+        if n_inliers > max_inliers:
+            A_init = A_init_tmp
+            b_init = b_init_tmp
+            max_inliers = n_inliers
 
-        # TODO: update below
-        #n_inliers[iter] =
+    # TODO: are we using n_inlier_cutoff in this way? Check the paper!
+    if max_inliers < n_inlier_cutoff:
+        raise Exception('insufficient inliers!')
     max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
-<<<<<<< HEAD
     A, b = find_argmin_T(points_s, points_t, A_d,
-=======
-    A, b = find_argmin_T(p_s, p_t, A_d,
->>>>>>> d97307e6841ad0b1333204eab64af2b4fb77e39a
                          A_init, b_init)
     # TODO: do I return T corresponding to A and b, or do I return A and b?
     #I think we want A and b here (Anne)
@@ -354,5 +355,5 @@ depth2=cv.imread(seconddepth,0)
 
 #Find Keypoints
 (XYZ1,XYZ2)=get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
-ransac(XYZ1,XYZ2,10,10,.5)
+#ransac(XYZ1,XYZ2,10,10,.5)
 #print(firstimg,firstdepth,secondimg,seconddepth)
