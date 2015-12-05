@@ -256,7 +256,10 @@ def find_argmin_T(p_s, p_t, A_d,
         # Flatten out A and b into x_0
         return(np.concatenate((np.reshape(A, newshape=(9,)), b)))
     x_0 = flatten(A, b)
-    sol = optimize.root(f_error, x_0, method='lm')
+    #sol = optimize.root(f_error, x_0, method='lm')
+# TODO: fix this minimization!! it's not working right!!!
+    print("minimizing the function now!!!")
+    sol = optimize.minimize(f_error, x_0)
     def expand(x):
         # Un-flattens x into the tuple of A and b
         return(np.reshape(x[0:9], newshape=(3,3)), x[9:12])
@@ -288,7 +291,7 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
 # TODO: should really be looking at the distance in the projected space!!
     inliers = [np.linalg.norm(pred_t[i,] - cloud_t[i,]) < d_cutoff for i in range(n_s)]
     max_inliers = sum(inliers)
-    print("Starting with " + `max_inliers` + " inliers")
+    print("Starting with " + str(max_inliers) + " inliers")
     for iter in range(n_iter):
         assert n_s == n_t, "clouds not of equal size in ransac()"
         # TODO: replace this random choice with 3 corresponding feature descriptors
@@ -322,8 +325,8 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
 
     # TODO: are we using n_inlier_cutoff in this way? Check the paper!
     if max_inliers < n_inlier_cutoff:
-        raise Exception('insufficient inliers! Want ' + `n_inlier_cutoff` +
-                        ' but got ' + `max_inliers`)
+        raise Exception('insufficient inliers! Want ' + str(n_inlier_cutoff) +
+                        ' but got ' + str(max_inliers))
     #max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
 # TODO: actually optimize over the depth field!! using spatial.KDTree and spatial.KDTree.query
