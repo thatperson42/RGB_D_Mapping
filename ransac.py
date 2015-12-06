@@ -7,6 +7,7 @@ import cv2 as cv
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+import PlotRGBD_3D
 import read_data
 
 def get_Orb_Keypoints_XYZ(rgb1, depth1, rgb2, depth2, m=50, fastThreshhold=60):
@@ -109,7 +110,7 @@ def pixel_2_XYZ(depth_image, pixels, freiburg1=True):
     XYZ=np.zeros((pixels.shape[0],3))
 
     for i in range(pixels.shape[0]):
-        XYZ[i,2]=depth_image[pixels[i,1],pixels[i,0]]/factor
+        XYZ[i,2]=depth_image[pixels[i,0],pixels[i,1]]/factor
         XYZ[i,0]=(pixels[i,1]-cx)*XYZ[i,2]/fx;
         XYZ[i,1]=(pixels[i,0]-cy)*XYZ[i,2]/fy;
 
@@ -159,7 +160,6 @@ def horn_adjust(x, y):
     # Find rotation matrix to rotate the x plane into the y plane
     # Using https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d
     # https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
-    # TODO: have to check this section! it's tricky
     x_perp_unit = x_perp / np.linalg.norm(x_perp)
     y_perp_unit = y_perp / np.linalg.norm(y_perp)
     v = np.cross(x_perp_unit, y_perp_unit)
@@ -168,10 +168,8 @@ def horn_adjust(x, y):
     v_x = np.array([[0, -v[2], v[1]],
                     [v[2], 0, -v[0]],
                     [-v[1], v[0], 0]])
-    # rotation_p works on a column vector
     # rotation_p acts on the plane
     rotation_p = np.eye(3) + v_x + v_x.dot(v_x) * (1 - c) / s**2.0
-    # TODO: rotate x_centered_prime properly
     # Transpose to make each x a column vector, then transpose back for next part
     x_plane = rotation_p.dot(x_centered_prime.T).T
     # Now rotate within the plane, as in Sec. 5 of Horn
@@ -190,28 +188,15 @@ def horn_adjust(x, y):
     # transpose so each column is an x vector, then transpose back at the end
     # x_final = rotation_win.dot(x_final.T).T
     rotation_full = rotation_win.dot(rotation_p)
-    #def T(w):
-    #    """
-    #    T takes a numpy array with 3 entries, spits out another
-    #    numpy array with 3 entries (this is a vector in R^3)
-    #    """
-    #    shift_tmp = (w - meanX) * scale_factor
-    #    rot_tmp = rotation_full.dot(shift_tmp)
-    #    return(rot_tmp + meanY)
     # Ignore scale_factor
     #    T(x) = Ax + b
     A = rotation_full
     b = meanY - rotation_full.dot(meanX)
     if debug:
-        #print("rotation_win")
-        #print(rotation_win)
         print("A")
         print(rotation_full)
         print("b")
         print(b)
-        #print("shifting by")
-        #print(rotation_full.dot(-meanX * scale_factor) + meanY)
-    #return(T)
     return(A, b)
 
 
@@ -227,7 +212,6 @@ def find_error(p_s, p_t, A_d,
     Uses read_data.proj
     """
     def T(x):
-        # TODO: make sure it's A.dot(x), and not A.dot(x.T) !!
         return(A.dot(x) + b)
 
 # TODO: add in w_j here
@@ -260,7 +244,6 @@ def find_argmin_T(p_s, p_t, A_d,
         return(np.concatenate((np.reshape(A, newshape=(9,)), b)))
     x_0 = flatten(A, b)
     #sol = optimize.root(f_error, x_0, method='lm')
-# TODO: fix this minimization!! it's not working right!!!
     print("minimizing the function now!!!")
     sol = optimize.minimize(f_error, x_0)
     def expand(x):
@@ -268,7 +251,6 @@ def find_argmin_T(p_s, p_t, A_d,
         return(np.reshape(x[0:9], newshape=(3,3)), x[9:12])
 
     A_tmp, b = expand(sol.x)
-    # TODO: could do a closer near_orthog rotation if there's much change here
     print("==============")
     print("A_tmp, before we make it near orthogonal")
     print(A_tmp)
@@ -293,8 +275,7 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
     n_s = len(cloud_s)
     n_t = len(cloud_t)
     n_inliers = [0] * n_iter
-    # initialize T_list
-#    A_init = np.zeros([3,3])
+# Initialization
     A_init = np.eye(3)
     b_init = np.zeros(3)
     pred_t = A_init.dot(cloud_s.T).T + b_init
@@ -306,16 +287,11 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
         assert n_s == n_t, "clouds not of equal size in ransac()"
         # TODO: replace this random choice with 3 corresponding feature descriptors
         points_inds = random.sample(range(n_s), 3)
-#        points_s = np.random.choice(n_s, 3, replace=False)
-#        points_t = np.random.choice(n_t, 3, replace=False)
         x_vals = np.array([cloud_s[i] for i in points_inds])
         y_vals = np.array([cloud_t[i] for i in points_inds])
-        #x_vals = np.array([cloud_s[i] for i in points_s])
-        #y_vals = np.array([cloud_t[i] for i in points_t])
 
         # Using Horn 1987, Closed-form solution of absolute orientation
         # using unit quaternions.
-        #T_init = horn_adjust(x_vals, y_vals)
         A_init_tmp, b_init_tmp = horn_adjust(x_vals, y_vals)
 
         # TODO: find inliers to the transformation T
@@ -340,11 +316,11 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
     #max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
 # TODO: actually optimize over the depth field!! using spatial.KDTree and spatial.KDTree.query
+#    spatial.KDTree()
+
     A_d = list(range(n_s))
     A, b = find_argmin_T(cloud_s, cloud_t, A_d,
                          A_init, b_init)
-#    A = A_init # TODO: Temporary, for testing!!!!
-#    b = b_init
     print("A_init value:")
     print(A_init)
     print("b_init value:")
@@ -388,6 +364,10 @@ rgb1=cv.imread(firstimg,0)
 depth1=cv.imread(firstdepth,0)
 rgb2=cv.imread(secondimg,0)
 depth2=cv.imread(seconddepth,0)
+
+#TODO
+#depth1XYZ = 3DPlotRGBD.depth2XYZ(depth1)
+#depth2XYZ = 3DPlotRGBD.depth2XYZ(depth2)
 
 #Find Keypoints
 #(XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
