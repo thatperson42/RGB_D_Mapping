@@ -233,7 +233,10 @@ def find_error(p_s, p_t, A_d,
 # TODO: add in w_j here
     second_sum = np.array([np.sqrt(np.linalg.norm(T(p_s[i]) - T(p_t[i])))
                            for i in A_d])
-    error = second_sum.sum() / len(A_d)
+    #error = second_sum.sum() / len(A_d)
+# TODO: the below is temprorary!! Need to figure out something not a hack!!
+# the 1/det(A) is to prevent us from pushing A towards zero
+    error = second_sum.sum() / len(A_d) + 1 / np.linalg.det(A) + np.linalg.det(A)
     return(error)
 
 def find_argmin_T(p_s, p_t, A_d,
@@ -266,6 +269,13 @@ def find_argmin_T(p_s, p_t, A_d,
 
     A_tmp, b = expand(sol.x)
     # TODO: could do a closer near_orthog rotation if there's much change here
+    print("==============")
+    print("A_tmp, before we make it near orthogonal")
+    print(A_tmp)
+    print("its determinant")
+    print(np.linalg.det(A_tmp))
+    print("==============")
+    #print("")
     A = near_orthog(A_tmp)
     return(A, b)
     
