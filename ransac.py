@@ -386,39 +386,30 @@ depth2=cv.imread(seconddepth,0)
 #(XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
 (XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=100)
 
-##TODO
-depth1 = depth1.astype(float)
-depth1[depth1 == 0] = np.nan
-depth1XYZ_tmp = PlotRGBD_3D.depth2XYZ(depth1, True, False)
-depth2 = depth2.astype(float)
-depth2[depth2 == 0] = np.nan
-depth2XYZ_tmp = PlotRGBD_3D.depth2XYZ(depth2, True, False)
 
-#dapth = np.array([ransac.depth1XYZ[i,j,:] for i in range(ransac.depth1XYZ.shape[0]) for j in range(ransac.depth1XYZ.shape[1]) if not any(np.isnan(ransac.depth1XYZ[i,j,:]))])
-dshape = depth1XYZ_tmp.shape
-depth1XYZ_tmp2 = np.array([depth1XYZ_tmp[i,j,:] for i in range(dshape[0])
-                                                for j in range(dshape[1])
-                                                if not any(np.isnan(depth1XYZ_tmp[i,j,:]))])
-depth2XYZ_tmp2 = np.array([depth2XYZ_tmp[i,j,:] for i in range(dshape[0])
-                                                for j in range(dshape[1])
-                                                if not any(np.isnan(depth2XYZ_tmp[i,j,:]))])
+def convert_depth(depth1, depth2):
+    depth1 = depth1.astype(float)
+    depth1[depth1 == 0] = np.nan
+    depth1XYZ_tmp = PlotRGBD_3D.depth2XYZ(depth1, True, False)
+    depth2 = depth2.astype(float)
+    depth2[depth2 == 0] = np.nan
+    depth2XYZ_tmp = PlotRGBD_3D.depth2XYZ(depth2, True, False)
+# Reshape the depth maps
+    dshape = depth1XYZ_tmp.shape
+    depth1XYZ_tmp2 = np.array([depth1XYZ_tmp[i,j,:] for i in range(dshape[0])
+                                                    for j in range(dshape[1])
+                                                    if not any(np.isnan(depth1XYZ_tmp[i,j,:]))])
+    depth2XYZ_tmp2 = np.array([depth2XYZ_tmp[i,j,:] for i in range(dshape[0])
+                                                    for j in range(dshape[1])
+                                                    if not any(np.isnan(depth2XYZ_tmp[i,j,:]))])
 # Downsample the depth maps for speed
-depth1XYZ = np.array([depth1XYZ_tmp2[i,:] for i in range(depth1XYZ_tmp2.shape[0])
-                                          if i % 10 == 0])
-depth2XYZ = np.array([depth2XYZ_tmp2[i,:] for i in range(depth2XYZ_tmp2.shape[0])
-                                          if i % 10 == 0])
-##from scipy import spatial
-##tree = spatial.KDTree(ransac.depth2XYZ)
-##tree_q = tree.query(ransac.depth1XYZ)
-#tree = spatial.KDTree(depth2XYZ)
-#tree_q = tree.query(depth1XYZ)
-## Keep only matches within the cutoff.
-## depth_pair_inds has indeces for depth1XYZ and depth2XYZ
-#cutoff = 0.01
-#depth_pair_inds = [(i,tree_q[1][i]) for i in range(len(tree_q[0]))
-#                                    if tree_q[0][i] < cutoff]
-#depth_cloud_s = np.array([depth1XYZ[k[0]] for k in depth_pair_inds])
-#depth_cloud_t = np.array([depth2XYZ[k[1]] for k in depth_pair_inds])
+    depth1XYZ = np.array([depth1XYZ_tmp2[i,:] for i in range(depth1XYZ_tmp2.shape[0])
+                                              if i % 10 == 0])
+    depth2XYZ = np.array([depth2XYZ_tmp2[i,:] for i in range(depth2XYZ_tmp2.shape[0])
+                                              if i % 10 == 0])
+    return(depth1XYZ, depth2XYZ)
+
+depth1XYZ, depth2XYZ = convert_depth(depth1, depth2)
 
 A,b = ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, 50, 5, .1)
 #print(firstimg,firstdepth,secondimg,seconddepth)
