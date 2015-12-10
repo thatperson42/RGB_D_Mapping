@@ -35,7 +35,7 @@ def Plot3DImage(rgb_image,depth_image,sample=True,samplerate=.5,ignoreOutliers=T
     
     return(None)
 
-def depth2XYZ(depth_image, freiburg1=True):
+def depth2XYZ(depth_image, freiburg1=True, passingRGB=True):
     """
     Input: 
          depth_image[pixely,pixelx, rgb] == depth at pixely, pixelx, color specified by rgb -
@@ -45,11 +45,12 @@ def depth2XYZ(depth_image, freiburg1=True):
          XYZ[pixely,pixelx] == (x, y, z) - Returns a matrix of three dimensional coordinates
     """
 
-    depth_image=depth_image[:,:,0]
+    if passingRGB:
+        depth_image=depth_image[:,:,0]
 
     factor=5000.0/255.0 #For greyscale images
     #Set focal parameters
-    if(freiburg1):
+    if freiburg1:
         #freiburg1 parameters
         fx=517.3  #Focal length x
         fy=516.5  #Focal length y

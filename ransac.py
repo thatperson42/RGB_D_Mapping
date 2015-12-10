@@ -110,7 +110,8 @@ def pixel_2_XYZ(depth_image, pixels, freiburg1=True):
     XYZ=np.zeros((pixels.shape[0],3))
 
     for i in range(pixels.shape[0]):
-        XYZ[i,2]=depth_image[pixels[i,0],pixels[i,1]]/factor
+        #XYZ[i,2]=depth_image[pixels[i,0],pixels[i,1]]/factor
+        XYZ[i,2]=depth_image[pixels[i,1],pixels[i,0]]/factor
         XYZ[i,0]=(pixels[i,1]-cx)*XYZ[i,2]/fx;
         XYZ[i,1]=(pixels[i,0]-cy)*XYZ[i,2]/fy;
 
@@ -262,10 +263,12 @@ def find_argmin_T(p_s, p_t, A_d,
     return(A, b)
     
 
-def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
+def ransac(cloud_s, cloud_t, 
+           depth_s, depth_t,
+           n_iter, n_inlier_cutoff, d_cutoff):
     """
-    cloud_s is a Numpy array of points in group s (source)
-    cloud_t is a Numpy array of points in group t (target)
+    cloud_s is a Numpy array of feature points in group s (source)
+    cloud_t is a Numpy array of feature points in group t (target)
     Each point is a Numpy array in x,y,z space.
     n_iter is how many iterations to perform (see slide 58, lecture 11)
     n_inlier_cutoff is how many inliers we need to refit
@@ -316,10 +319,24 @@ def ransac(cloud_s, cloud_t, n_iter, n_inlier_cutoff, d_cutoff):
     #max_index = n_inliers.index(max(n_inliers)) 
     # Compute the best transformation T_star
 # TODO: actually optimize over the depth field!! using spatial.KDTree and spatial.KDTree.query
-#    spatial.KDTree()
+# Need to shift depth1XYZ by our initial transformation first
+    depth1XYZ = A_init.dot(depth_s.T).T + b_init
+    depth2XYZ = depth_t
+    tree = spatial.KDTree(depth2XYZ)
+    tree_q = tree.query(depth1XYZ)
+# Keep only matches within the cutoff.
+# depth_pair_inds has indeces for depth1XYZ and depth2XYZ
+    cutoff = 0.01
+    depth_pair_inds = [(i,tree_q[1][i]) for i in range(len(tree_q[0]))
+                                        if tree_q[0][i] < cutoff]
+    depth_cloud_s = np.array([depth1XYZ[k[0]] for k in depth_pair_inds])
+    depth_cloud_t = np.array([depth2XYZ[k[1]] for k in depth_pair_inds])
 
-    A_d = list(range(n_s))
-    A, b = find_argmin_T(cloud_s, cloud_t, A_d,
+#    A_d = list(range(n_s))
+#    A, b = find_argmin_T(cloud_s, cloud_t, A_d,
+#                         A_init, b_init)
+    A_d = list(range(depth_cloud_s.shape[0]))
+    A, b = find_argmin_T(depth_cloud_s, depth_cloud_t, A_d,
                          A_init, b_init)
     print("A_init value:")
     print(A_init)
@@ -365,12 +382,44 @@ depth1=cv.imread(firstdepth,0)
 rgb2=cv.imread(secondimg,0)
 depth2=cv.imread(seconddepth,0)
 
-#TODO
-#depth1XYZ = 3DPlotRGBD.depth2XYZ(depth1)
-#depth2XYZ = 3DPlotRGBD.depth2XYZ(depth2)
-
 #Find Keypoints
 #(XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
 (XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=100)
-A,b = ransac(XYZ1, XYZ2, 50, 5, .1)
+
+##TODO
+depth1 = depth1.astype(float)
+depth1[depth1 == 0] = np.nan
+depth1XYZ_tmp = PlotRGBD_3D.depth2XYZ(depth1, True, False)
+depth2 = depth2.astype(float)
+depth2[depth2 == 0] = np.nan
+depth2XYZ_tmp = PlotRGBD_3D.depth2XYZ(depth2, True, False)
+
+#dapth = np.array([ransac.depth1XYZ[i,j,:] for i in range(ransac.depth1XYZ.shape[0]) for j in range(ransac.depth1XYZ.shape[1]) if not any(np.isnan(ransac.depth1XYZ[i,j,:]))])
+dshape = depth1XYZ_tmp.shape
+depth1XYZ_tmp2 = np.array([depth1XYZ_tmp[i,j,:] for i in range(dshape[0])
+                                                for j in range(dshape[1])
+                                                if not any(np.isnan(depth1XYZ_tmp[i,j,:]))])
+depth2XYZ_tmp2 = np.array([depth2XYZ_tmp[i,j,:] for i in range(dshape[0])
+                                                for j in range(dshape[1])
+                                                if not any(np.isnan(depth2XYZ_tmp[i,j,:]))])
+# Downsample the depth maps for speed
+depth1XYZ = np.array([depth1XYZ_tmp2[i,:] for i in range(depth1XYZ_tmp2.shape[0])
+                                          if i % 10 == 0])
+depth2XYZ = np.array([depth2XYZ_tmp2[i,:] for i in range(depth2XYZ_tmp2.shape[0])
+                                          if i % 10 == 0])
+##from scipy import spatial
+##tree = spatial.KDTree(ransac.depth2XYZ)
+##tree_q = tree.query(ransac.depth1XYZ)
+#tree = spatial.KDTree(depth2XYZ)
+#tree_q = tree.query(depth1XYZ)
+## Keep only matches within the cutoff.
+## depth_pair_inds has indeces for depth1XYZ and depth2XYZ
+#cutoff = 0.01
+#depth_pair_inds = [(i,tree_q[1][i]) for i in range(len(tree_q[0]))
+#                                    if tree_q[0][i] < cutoff]
+#depth_cloud_s = np.array([depth1XYZ[k[0]] for k in depth_pair_inds])
+#depth_cloud_t = np.array([depth2XYZ[k[1]] for k in depth_pair_inds])
+
+A,b = ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, 50, 5, .1)
 #print(firstimg,firstdepth,secondimg,seconddepth)
+
