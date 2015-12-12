@@ -265,6 +265,7 @@ def find_argmin_T(p_s, p_t, A_d,
 
 def ransac(cloud_s, cloud_t, 
            depth_s, depth_t,
+           A_prev, b_prev,
            n_iter, n_inlier_cutoff, d_cutoff):
     """
     cloud_s is a Numpy array of feature points in group s (source)
@@ -279,8 +280,8 @@ def ransac(cloud_s, cloud_t,
     n_t = len(cloud_t)
     n_inliers = [0] * n_iter
 # Initialization
-    A_init = np.eye(3)
-    b_init = np.zeros(3)
+    A_init = A_prev
+    b_init = b_prev
     pred_t = A_init.dot(cloud_s.T).T + b_init
 # TODO: should really be looking at the distance in the projected space!!
     inliers = [np.linalg.norm(pred_t[i,] - cloud_t[i,]) < d_cutoff for i in range(n_s)]
@@ -370,23 +371,6 @@ print("Output")
 print(T_tmp(xs[0]) - ys[0])
 """
 
-print("Anne's Work Starts Here")
-
-#Load first two images
-firstimg=read_data.rgbData[read_data.pairedData[100][0]][0]
-firstdepth=read_data.depthData[read_data.pairedData[100][1]][0]
-secondimg=read_data.rgbData[read_data.pairedData[101][0]][0]
-seconddepth=read_data.depthData[read_data.pairedData[101][1]][0]
-rgb1=cv.imread(firstimg,0)
-depth1=cv.imread(firstdepth,0)
-rgb2=cv.imread(secondimg,0)
-depth2=cv.imread(seconddepth,0)
-
-#Find Keypoints
-#(XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
-(XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=100)
-
-
 def convert_depth(depth1, depth2):
     depth1 = depth1.astype(float)
     depth1[depth1 == 0] = np.nan
@@ -409,8 +393,25 @@ def convert_depth(depth1, depth2):
                                               if i % 10 == 0])
     return(depth1XYZ, depth2XYZ)
 
-depth1XYZ, depth2XYZ = convert_depth(depth1, depth2)
 
-A,b = ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, 50, 5, .1)
+if __name__=="__main__":
+#Load first two images
+    firstimg=read_data.rgbData[read_data.pairedData[100][0]][0]
+    firstdepth=read_data.depthData[read_data.pairedData[100][1]][0]
+    secondimg=read_data.rgbData[read_data.pairedData[101][0]][0]
+    seconddepth=read_data.depthData[read_data.pairedData[101][1]][0]
+    rgb1=cv.imread(firstimg,0)
+    depth1=cv.imread(firstdepth,0)
+    rgb2=cv.imread(secondimg,0)
+    depth2=cv.imread(seconddepth,0)
+
+#Find Keypoints
+#(XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=150)
+    (XYZ1,XYZ2) = get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=100)
+
+    depth1XYZ, depth2XYZ = convert_depth(depth1, depth2)
+
+    A,b = ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, np.eye(3), np.zeros((3)), 50, 5, .1)
+    print(A,b)
 #print(firstimg,firstdepth,secondimg,seconddepth)
 
