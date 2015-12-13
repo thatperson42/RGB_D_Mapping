@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 totalframes=30
-startframe=647
+startframe=645
 
 XYZRGB=np.zeros((1,6))
 Atransforms=np.zeros((totalframes,3,3))
@@ -24,14 +24,16 @@ for i in range(startframe,startframe+totalframes-1):
     rgb2=cv.imread(secondimg,0)
     depth2=cv.imread(seconddepth,0)
     
-    (XYZ1,XYZ2) = ransac.get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=80)
+    (XYZ1,XYZ2) = ransac.get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=100)
     depth1XYZ, depth2XYZ = ransac.convert_depth(depth1, depth2)
 
-    Atransforms[i-startframe+1,:,:],btransforms[i-startframe+1,:] = ransac.ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, Atransforms[i-startframe,:,:],btransforms[i-startframe,:], 50, 5, .1)
+    Atransforms[i-startframe+1,:,:],btransforms[i-startframe+1,:] = ransac.ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, Atransforms[i-startframe,:,:],btransforms[i-startframe,:], 50, 5, .05)
 
 Acumulative=np.eye(3)
 bcumulative=np.zeros((1,3))
 framepixels=np.zeros((totalframes))
+filename="pictures/test"
+
 
 for i in range(totalframes):
     img2=read_data.rgbData[read_data.pairedData[startframe+i][0]][0]
@@ -56,9 +58,16 @@ for i in range(totalframes):
     XYZRGB=np.row_stack((XYZRGB,poscol))
     framepixels[i]=poscol.shape[0]
 
-fig=plt.figure()
-ax=fig.add_subplot(111,projection='3d')
-inds=range(0,XYZRGB.shape[0],25)
-ax.scatter(XYZRGB[inds,0],XYZRGB[inds,1],XYZRGB[inds,2],c=XYZRGB[inds,3:6]/255,s=8,edgecolors='none')
-ax.view_init(elev=-115,azim=-90)
-plt.show()
+    fig=plt.figure()
+    ax=fig.add_subplot(111,projection='3d')
+    
+    clearrange=range(0,int(framepixels.cumsum().tolist()[i]),100)
+    if i==0:
+        visiblerange=range(0,int(framepixels.tolist()[0]),5)
+    else:
+        visiblerange=range(int(framepixels.cumsum().tolist()[i-1]),int(framepixels.cumsum()[i]),5)
+
+    ax.scatter(XYZRGB[clearrange,0],XYZRGB[clearrange,1],XYZRGB[clearrange,2],c=XYZRGB[clearrange,3:6]/255,s=8,alpha=.2,edgecolors='none')
+    ax.scatter(XYZRGB[visiblerange,0],XYZRGB[visiblerange,1],XYZRGB[visiblerange,2],c=XYZRGB[visiblerange,3:6]/255,s=8,edgecolors='none')
+    ax.view_init(elev=-115,azim=-90)
+    plt.savefig(filename+str(i)+'.png')
