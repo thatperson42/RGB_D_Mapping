@@ -216,7 +216,7 @@ def find_error(p_s, p_t, A_d,
         return(A.dot(x) + b)
 
 # TODO: add in w_j here
-    second_sum = np.array([np.sqrt(np.linalg.norm(T(p_s[i]) - T(p_t[i])))
+    second_sum = np.array([np.sqrt(np.linalg.norm(T(p_s[i]) - p_t[i]))
                            for i in A_d])
     #error = second_sum.sum() / len(A_d)
 # TODO: the below is temprorary!! Need to figure out something not a hack!!
@@ -330,7 +330,8 @@ def ransac(cloud_s, cloud_t,
     cutoff = 0.01
     depth_pair_inds = [(i,tree_q[1][i]) for i in range(len(tree_q[0]))
                                         if tree_q[0][i] < cutoff]
-    depth_cloud_s = np.array([depth1XYZ[k[0]] for k in depth_pair_inds])
+    #depth_cloud_s = np.array([depth1XYZ[k[0]] for k in depth_pair_inds])
+    depth_cloud_s = np.array([depth_s[k[0]] for k in depth_pair_inds])
     depth_cloud_t = np.array([depth2XYZ[k[1]] for k in depth_pair_inds])
 
 #    A_d = list(range(n_s))
