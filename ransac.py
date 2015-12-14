@@ -286,6 +286,7 @@ def ransac(cloud_s, cloud_t,
 # TODO: should really be looking at the distance in the projected space!!
     inliers = [np.linalg.norm(pred_t[i,] - cloud_t[i,]) < d_cutoff for i in range(n_s)]
     max_inliers = sum(inliers)
+    print("Have " + str(n_s) + " features that could be inliers")
     print("Starting with " + str(max_inliers) + " inliers")
     for iter in range(n_iter):
         assert n_s == n_t, "clouds not of equal size in ransac()"

@@ -7,6 +7,8 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 totalframes=30
+#totalframes=10
+#totalframes=3
 startframe=645
 
 XYZRGB=np.zeros((1,6))
@@ -24,10 +26,12 @@ for i in range(startframe,startframe+totalframes-1):
     rgb2=cv.imread(secondimg,0)
     depth2=cv.imread(seconddepth,0)
     
-    (XYZ1,XYZ2) = ransac.get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=100)
+    #(XYZ1,XYZ2) = ransac.get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=100)
+    (XYZ1,XYZ2) = ransac.get_Orb_Keypoints_XYZ(rgb1,depth1,rgb2,depth2,fastThreshhold=60)
     depth1XYZ, depth2XYZ = ransac.convert_depth(depth1, depth2)
 
-    Atransforms[i-startframe+1,:,:],btransforms[i-startframe+1,:] = ransac.ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, Atransforms[i-startframe,:,:],btransforms[i-startframe,:], 50, 5, .05)
+    #Atransforms[i-startframe+1,:,:],btransforms[i-startframe+1,:] = ransac.ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, Atransforms[i-startframe,:,:],btransforms[i-startframe,:], 50, 5, .05)
+    Atransforms[i-startframe+1,:,:],btransforms[i-startframe+1,:] = ransac.ransac(XYZ1, XYZ2, depth1XYZ, depth2XYZ, Atransforms[i-startframe,:,:],btransforms[i-startframe,:], 50, 5, .01)
 
 Acumulative=np.eye(3)
 bcumulative=np.zeros((1,3))
@@ -71,3 +75,12 @@ for i in range(totalframes):
     ax.scatter(XYZRGB[visiblerange,0],XYZRGB[visiblerange,1],XYZRGB[visiblerange,2],c=XYZRGB[visiblerange,3:6]/255,s=8,edgecolors='none')
     ax.view_init(elev=-115,azim=-90)
     plt.savefig(filename+str(i)+'.png')
+
+fig=plt.figure()
+ax=fig.add_subplot(111,projection='3d')
+inds=range(0,int(framepixels.cumsum().tolist()[totalframes-1]))
+#inds=range(0,int(framepixels.cumsum().tolist()[totalframes-1]), 10)
+ax.scatter(XYZRGB[inds,0],XYZRGB[inds,1],XYZRGB[inds,2],c=XYZRGB[inds,3:6]/255,s=8,edgecolors='none')
+ax.view_init(elev=-115,azim=-90)
+plt.savefig('pictures/Fulldata.png')
+
